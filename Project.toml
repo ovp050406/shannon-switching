@@ -1,0 +1,25 @@
+name = "Shannon"
+uuid = "6e589e42-18f9-435c-967a-6cf803c5722b"
+version = "0.1.0"
+authors = ["Oleksandr Pistruzhak", "Ali Kilinc", "Simon Wesendrup"]
+
+[deps]
+Cairo = "159f3aea-2a34-519c-b102-8c37f9878175"
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+Gtk4 = "9db2cae5-386f-4011-9d63-a5602296539b"
+GtkObservables = "8710efd8-4ad6-11eb-33ea-2d5ceb25a41c"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+Cairo = "1.1"
+DataStructures = "0.18"
+Gtk4 = "0.7"
+GtkObservables = "2.2"
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
