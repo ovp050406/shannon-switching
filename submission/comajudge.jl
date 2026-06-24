@@ -65,6 +65,16 @@ end
 _neutral_ids(g) = Int[e.id for e in g.edges if e.state == :neutral]
 _by_id(g) = Dict(e.id => e for e in g.edges)
 
+# Defensive fallback: always hand back a *legal* (neutral) edge when one exists;
+# only the degenerate full-board case (which the harness never reaches) can fall
+# through to the first edge.
+function _first_neutral(g)
+    for e in g.edges
+        e.state == :neutral && return e
+    end
+    return first(g.edges)
+end
+
 """
     weighted_short(state) -> Edge
 
@@ -80,12 +90,12 @@ function weighted_short(state)
         if base == Inf
             # no s-t path yet → claim globally cheapest neutral edge
             nid = _neutral_ids(g)
-            isempty(nid) && return first(g.edges)
+            isempty(nid) && return _first_neutral(g)
             return bid[argmin_id(nid, id -> bid[id].weight)]
         end
         # cheap path already fully owned → spend on cheapest neutral edge
         nid = _neutral_ids(g)
-        return isempty(nid) ? first(g.edges) : bid[argmin_id(nid, id -> bid[id].weight)]
+        return isempty(nid) ? _first_neutral(g) : bid[argmin_id(nid, id -> bid[id].weight)]
     end
     best = on_path[1]; bestgain = -1.0
     for id in on_path
@@ -111,7 +121,7 @@ function weighted_cut(state)
     bid = _by_id(g)
     base, path = _cst(g, Set{Int}())
     nid = _neutral_ids(g)
-    isempty(nid) && return first(g.edges)
+    isempty(nid) && return _first_neutral(g)
     base == Inf && return bid[nid[1]]                  # Short already cannot connect
 
     cands = Set{Int}()
