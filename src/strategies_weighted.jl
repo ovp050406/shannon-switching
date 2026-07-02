@@ -11,10 +11,8 @@
 
 """
     TEAM_NAME
-
-Competition team name. **Replace `"???"` with your real team name before
-submitting via `comajudge`.**
 """
+
 const TEAM_NAME = "OSA"
 
 # Dijkstra over allowed edges; Short-claimed edges cost 0, neutral edges cost
