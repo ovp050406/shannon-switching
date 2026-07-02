@@ -9,7 +9,8 @@
 # - Cut removes an edge that makes this path more expensive or disconnects it.
 #
 # The strategy only checks a small number of candidate edges, so it stays fast.
-# ============================================================================
+#Edges = Kanten, Vertex = Knoten
+#============================================================================
 
 const TEAM_NAME = "OSA"   # Oleksandr Pistruzhak · Ali Kilinc · Simon Wesendrup
 
