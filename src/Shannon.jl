@@ -7,6 +7,9 @@ classic unweighted game and heuristic strategies for the weighted competition.
 """
 module Shannon
 
+# Includes are ordered by dependency: each file may use everything included
+# above it, never below — do not reorder (e.g. game.jl calls into graph.jl,
+# lehman.jl builds on spanning_trees.jl, the strategies build on lehman/cuts).
 include("structs.jl")
 include("graph.jl")
 include("game.jl")
@@ -24,11 +27,16 @@ try
     GUI_AVAILABLE[] = true
 catch err
     @warn "GUI not loaded (Gtk stack unavailable); `run_game` is disabled." exception = (err, catch_backtrace())
+    # Stub with the same name so `export run_game` still succeeds and a caller
+    # gets a clear instruction instead of an UndefVarError.
     global run_game(args...) = error(
         "GUI unavailable. Add Gtk4, GtkObservables and Cairo to the active " *
         "environment and reload Shannon to enable run_game.")
 end
 
+# Public API. Underscore-prefixed internals (short_certificate, _cheapest_st,
+# _short_waits_and_wins, …) are intentionally NOT exported — reach them via
+# `Shannon.<name>` (as scripts/validate_classic.jl does when testing the engine).
 # core data structures
 export Vertex, Edge, GameGraph, GameState
 # game logic

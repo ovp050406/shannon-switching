@@ -273,6 +273,8 @@ graph dropdown to load examples and "Neues Spiel" to restart.
 """
 function run_game(graph::GameGraph = _diamond())
     library = predefined_graphs()
+    # Single source of truth: every game change is a write to state_obs, which
+    # repaints the canvas and updates the label via the on(state_obs) handler below.
     state_obs = Observable(new_game(graph))
     pos_ref = Ref(_layout(graph))
     weighted_ref = Ref(any(e -> e.weight > 0, graph.edges))
@@ -333,6 +335,9 @@ function run_game(graph::GameGraph = _diamond())
         end
     end
 
+    # If it's the computer's turn, make its move. @idle_add defers the (possibly
+    # slow) computation so the window stays responsive; the queued block re-checks
+    # its preconditions because the state may have changed while it waited.
     function maybe_ai_move()
         edit_ref[] && return
         st = state_obs[]
@@ -346,6 +351,8 @@ function run_game(graph::GameGraph = _diamond())
             s2 = state_obs[]
             e = pick_strategy(s2.current_player)(s2)
             make_move!(s2, e)
+            # make_move! mutates the existing GameState in place, so the Observable
+            # can't detect the change — notify() manually triggers the repaint.
             notify(state_obs)
             maybe_ai_move()
             return false
@@ -500,6 +507,8 @@ function run_game(graph::GameGraph = _diamond())
     end
 
     start_new() = begin
+        # Gtk combo index is 0-based (-1 = nothing selected); Julia arrays are
+        # 1-based, hence library[idx + 1].
         idx = Gtk4.G_.get_active(combo)
         g = idx >= 0 ? library[idx + 1][2] : graph
         weighted_ref[] = Gtk4.G_.get_active(wmode)
@@ -520,6 +529,8 @@ function run_game(graph::GameGraph = _diamond())
     show(win)
     maybe_ai_move()
     Gtk4.start_main_loop()
+    # In script mode (not the REPL) block until the window is closed, otherwise
+    # run_game would return immediately and the window would vanish.
     if !isinteractive()
         done = Channel{Nothing}(1)
         signal_connect(win, "close-request") do _

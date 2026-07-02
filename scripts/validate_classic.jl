@@ -9,7 +9,11 @@
 using Shannon
 using Random
 
-# Can the player to move force Short to connect s-t under optimal play?
+# Can the player to move force Short to connect s-t under optimal play? This is
+# the brute-force minimax "oracle": always correct, exponential. Short needs ONE
+# winning move (∃); Cut wins if ANY of its moves defeats Short (∀). Each move is
+# tried by temporarily setting e.state and rolling it back to :neutral (backtracking),
+# so the graph is reused in place and stays clean between probes.
 function short_can_win(state::GameState)::Bool
     w = check_winner(state)
     w === :short && return true
@@ -35,6 +39,8 @@ function short_can_win(state::GameState)::Bool
     end
 end
 
+# Pick a move that keeps the position won for the side to move, so the oracle can
+# also *play* (not just judge). Falls back to the first move in a lost position.
 function optimal_move(state::GameState)::Edge
     moves = valid_moves(state)
     want_short = state.current_player == :short
@@ -48,6 +54,7 @@ function optimal_move(state::GameState)::Edge
     return first(moves)
 end
 
+# Play a full game with the two given strategy functions; return the winner.
 function play(g, short_fn, cut_fn)
     st = new_game(g)
     while true
@@ -96,6 +103,8 @@ function probe_positions(g::GameGraph, rng)::Tuple{Int,Int}
     return (checked, mism)
 end
 
+# Fixed seeds → deterministic, reproducible run (the same 1500 graphs every time,
+# so any failure can be reproduced). Separate RNG for the random walk in probes.
 Random.seed!(2026)
 rng = Random.MersenneTwister(7)
 nt = 0; short_ok = 0; cut_ok = 0; bad = 0
@@ -106,6 +115,8 @@ for _ in 1:1500
     for e in g.edges; e.state = :neutral; end
 
     (c, mm) = probe_positions(g, rng)
+    # `global` is required: at script top level an assignment inside the loop would
+    # otherwise create a new local instead of updating the outer counter.
     global pos_checked += c; global pos_mism += mm
     for e in g.edges; e.state = :neutral; end
 
