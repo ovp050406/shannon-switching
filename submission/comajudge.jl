@@ -24,7 +24,8 @@ function _cst(g, forbidden::Set{Int})
     ids = [v.id for v in g.vertices]
     idx = Dict(id => k for (k, id) in enumerate(ids))
     n = length(ids)
-    adj = [Tuple{Int,Float64,Int}[] for _ in 1:n]      # neighbour, cost, edge id    for e in g.edges
+    adj = [Tuple{Int,Float64,Int}[] for _ in 1:n]      # neighbour, cost, edge id    
+    for e in g.edges
         (e.state == :neutral || e.state == :short) || continue
         e.id in forbidden && continue
         c = e.state == :short ? 0.0 : e.weight
