@@ -1,10 +1,9 @@
 # Minimum s-t cut over removable (neutral) edges.
 #
-# Used by Cut's strategy: Short-claimed edges are *uncuttable* (Cut may only
-# remove neutral edges), so they get effectively infinite capacity while every
-# neutral edge has unit capacity. A maximum s-t flow then equals the number of
-# edge-disjoint s-t paths Cut must still break, and the saturated neutral edges
-# on the residual cut are exactly the edges worth removing.
+# Cut can only remove neutral edges.
+# Therefore, Short-owned edges get a very large capacity,
+# while neutral edges get capacity 1.
+# The minimum cut then tells us which neutral edges are most useful for Cut.
 
 const _INF_CAP = typemax(Int) ÷ 4
 
