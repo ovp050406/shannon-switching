@@ -1,34 +1,30 @@
 # ============================================================================
-#  Shannon-Switching — weighted competition entry (project spec §5.2/§5.3)
+# Shannon-Switching — weighted competition strategy
 #
-#  Submit with:   comajudge submit -t submission/comajudge.jl -p Shannon
-#  Leaderboard:   comajudge result -p Shannon
+# This file is self-contained because the judge already provides the game
+# structs and the game loop.
 #
-#  SELF-CONTAINED on purpose: the judge supplies the Vertex / Edge / GameGraph /
-#  GameState types and the game framework, so this file defines ONLY the two
-#  required strategy functions, the TEAM_NAME constant and private helpers. It
-#  relies solely on the documented struct fields (e.state, e.weight, e.u, e.v,
-#  e.id, graph.edges, graph.s, graph.t, state.graph, state.current_player).
+# We use the cheapest possible s-t path as a guide:
+# - Short secures an important edge on that path.
+# - Cut removes an edge that makes this path more expensive or disconnects it.
 #
-#  Strategy (proxy = cheapest s-t path in G′ where Short edges cost 0):
-#    Short  → secure the most *critical* neutral edge of the cheapest path,
-#             i.e. the one whose loss would raise that cost the most.
-#    Cut    → remove the neutral edge that most increases the cheapest cost,
-#             disconnecting s-t outright when possible.
-#  Each move runs a handful of O(V²) Dijkstra evaluations — comfortably within
-#  the 2 s / move budget.
-# ============================================================================
+# The strategy only checks a small number of candidate edges, so it stays fast.
+#Edges = Kanten, Vertex = Knoten
+#
+============================================================================
 
 const TEAM_NAME = "OSA"   # Oleksandr Pistruzhak · Ali Kilinc · Simon Wesendrup
 
-# Cheapest s-t path over (neutral ∪ short); Short edges cost 0, neutral cost
-# their weight; `forbidden` ids are treated as removed. Returns (cost, path_ids).
+# Find the cheapest path from s to t.
+# Short-owned edges have cost 0, neutral edges use their weight.
+# Edges in `forbidden` are treated as removed.
+# Returns the path cost and the edge ids on that path.
 function _cst(g, forbidden::Set{Int})
     s = g.s.id; t = g.t.id
     ids = [v.id for v in g.vertices]
     idx = Dict(id => k for (k, id) in enumerate(ids))
     n = length(ids)
-    adj = [Tuple{Int,Float64,Int}[] for _ in 1:n]      # (nbr_idx, cost, edge_id)
+    adj = [Tuple{Int,Float64,Int}[] for _ in 1:n]      # neighbour, cost, edge id    
     for e in g.edges
         (e.state == :neutral || e.state == :short) || continue
         e.id in forbidden && continue
@@ -61,13 +57,11 @@ function _cst(g, forbidden::Set{Int})
     return (dist[ti], path)
 end
 
-# All neutral edge ids; convenience lookups.
+# Small helper functions for neutral edges and edge lookup.
 _neutral_ids(g) = Int[e.id for e in g.edges if e.state == :neutral]
 _by_id(g) = Dict(e.id => e for e in g.edges)
 
-# Defensive fallback: always hand back a *legal* (neutral) edge when one exists;
-# only the degenerate full-board case (which the harness never reaches) can fall
-# through to the first edge.
+# Return a legal neutral edge as a fallback.
 function _first_neutral(g)
     for e in g.edges
         e.state == :neutral && return e
@@ -78,8 +72,10 @@ end
 """
     weighted_short(state) -> Edge
 
-Claim the neutral edge on the cheapest s-t path whose removal would raise that
-cost the most (lock in the cheap connection before Cut breaks it).
+Choose an important neutral edge on the current cheapest s-t path.
+
+For every neutral edge on this path, we check how expensive the path would
+be if Cut removed it. Short claims the edge with the largest increase.
 """
 function weighted_short(state)
     g = state.graph
@@ -88,12 +84,12 @@ function weighted_short(state)
     on_path = [id for id in path if bid[id].state == :neutral]
     if isempty(on_path)
         if base == Inf
-            # no s-t path yet → claim globally cheapest neutral edge
+            # No path is available yet, so choose the cheapest neutral edge.
             nid = _neutral_ids(g)
             isempty(nid) && return _first_neutral(g)
             return bid[argmin_id(nid, id -> bid[id].weight)]
         end
-        # cheap path already fully owned → spend on cheapest neutral edge
+        # The cheapest path is already secured, so choose a cheap remaining edge.
         nid = _neutral_ids(g)
         return isempty(nid) ? _first_neutral(g) : bid[argmin_id(nid, id -> bid[id].weight)]
     end
@@ -112,9 +108,10 @@ end
 """
     weighted_cut(state) -> Edge
 
-Remove the neutral edge that most increases Short's cheapest s-t path cost
-(disconnecting s-t is best). Candidates: edges on the cheapest path plus all
-neutral edges incident to s or t (cheap disconnection checks).
+Remove the neutral edge that hurts Short's cheapest possible path the most.
+
+We check edges on the current cheapest path and edges directly connected to
+s or t. Disconnecting s and t is always the best result for Cut.
 """
 function weighted_cut(state)
     g = state.graph
@@ -122,7 +119,7 @@ function weighted_cut(state)
     base, path = _cst(g, Set{Int}())
     nid = _neutral_ids(g)
     isempty(nid) && return _first_neutral(g)
-    base == Inf && return bid[nid[1]]                  # Short already cannot connect
+    base == Inf && return bid[nid[1]]                  # No s-t path is left for Short.
 
     cands = Set{Int}()
     for id in path
@@ -144,7 +141,7 @@ function weighted_cut(state)
     return bid[best]
 end
 
-# argmin of `f` over a non-empty vector of ids.
+# Return the id with the smallest value of f.
 function argmin_id(ids, f)
     best = ids[1]; bv = f(best)
     for id in ids
