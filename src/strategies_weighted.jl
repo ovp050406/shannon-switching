@@ -11,8 +11,9 @@
 
 """
     TEAM_NAME
-"""
 
+Team name constant required by the comajudge competition (project spec §5.2).
+"""
 const TEAM_NAME = "OSA"
 
 # Dijkstra over allowed edges; Short-claimed edges cost 0, neutral edges cost
