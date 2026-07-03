@@ -1,13 +1,11 @@
-# Heuristic strategies for the weighted game (competition part, project spec §5).
+# Heuristic strategies for the weighted game.
 #
-# Short minimises the total weight of its final s-t path; Cut maximises it. The
-# game is played to the very last neutral edge, then Short's score is the
-# cheapest s-t path among Short-claimed edges (a high penalty if disconnected).
+# Short wants to build a cheap path from s to t.
+# Cut wants to make this path more expensive or disconnect it.
 #
-# Guiding proxy: the cheapest s-t path in G′ = (neutral ∪ Short) where Short
-# edges cost 0 (already owned) and neutral edges cost their weight. Short tries
-# to lock in that cheap path by securing its most fragile (critical) edge; Cut
-# tries to push that cheapest cost up (or disconnect s-t entirely).
+# We use the current cheapest possible s-t path as a guide.
+# Short protects an important edge on this path.
+# Cut tries to remove an edge that hurts this path the most.
 
 """
     TEAM_NAME
@@ -15,9 +13,10 @@
 
 const TEAM_NAME = "OSA"
 
-# Dijkstra over allowed edges; Short-claimed edges cost 0, neutral edges cost
-# their weight. Returns (cost, path_edges). cost == Inf means no s-t path.
-# `forbidden` edge ids are treated as removed. O(V^2), dependency-free.
+# Find the cheapest possible path from s to t.
+# Short-owned edges have cost 0 and neutral edges use their weight.
+# Edges in `forbidden` are treated as removed.
+# Returns the path cost and the Kanten on that path.
 function _cheapest_st(g::GameGraph; forbidden::Set{Int}=Set{Int}())
     INF = Inf
     s = g.s.id; t = g.t.id
@@ -69,10 +68,10 @@ end
 """
     weighted_short(state::GameState) -> Edge
 
-Claim the most *critical* neutral edge on the current cheapest s-t path — the
-edge whose loss would raise the cheapest-path cost the most — locking in the
-cheap connection before Cut can break it. Falls back to the cheapest neutral
-edge when no s-t path remains.
+Choose an important neutral edge on the current cheapest s-t path.
+
+For every neutral edge on this path, we check how expensive the path would
+be if this edge was removed. Short claims the edge with the largest increase.
 """
 function weighted_short(state::GameState)::Edge
     g = state.graph
@@ -82,21 +81,19 @@ function weighted_short(state::GameState)::Edge
     base, path = _cheapest_st(g)
     neutral_on_path = [e for e in path if e.state == :neutral]
     if isempty(neutral_on_path)
-        # No path, or path already fully Short-owned. If there is a path it is
-        # secured; otherwise grab the globally cheapest neutral edge to keep
-        # building toward a connection.
+        # There is no neutral edge on the cheapest path.
+        # Either the path is already secured or no path is available.
         base == Inf || return first(moves)
         return argmin_by(moves, e -> e.weight)
     end
 
-    # Secure the edge whose removal hurts the cheapest path most.
+# Choose the edge whose removal would increase the path cost the most.
     best = first(neutral_on_path)
     best_gain = -1.0
     for e in neutral_on_path
         alt, _ = _cheapest_st(g; forbidden=Set((e.id,)))
         gain = (alt == Inf ? 1e9 : alt) - base
-        # Prefer larger damage-if-lost; tie-break toward heavier edge (more at
-        # risk of being targeted by Cut).
+        # If two edges are equally important, prefer the heavier one.
         if gain > best_gain + 1e-12 ||
            (abs(gain - best_gain) <= 1e-12 && e.weight > best.weight)
             best = e; best_gain = gain
@@ -110,10 +107,11 @@ end
 """
     weighted_cut(state::GameState) -> Edge
 
-Remove the neutral edge that most increases Short's cheapest s-t path cost
-(disconnecting s and t outright is best of all). Candidates are restricted to
-the current cheapest path plus a minimum-cut set, keeping each move fast.
-Falls back to any legal move.
+Remove a neutral edge that makes Short's cheapest possible path as expensive
+as possible.
+
+We check edges on the current cheapest path and edges from a minimum cut.
+This keeps the number of tested moves small and fast.
 """
 function weighted_cut(state::GameState)::Edge
     g = state.graph
@@ -121,7 +119,7 @@ function weighted_cut(state::GameState)::Edge
     isempty(moves) && throw(ArgumentError("no neutral edges left"))
 
     base, path = _cheapest_st(g)
-    base == Inf && return first(moves)        # Short already cannot connect
+    base == Inf && return first(moves)        # Short has no possible s-t path left.
 
     candidates = Set{Int}()
     for e in path
@@ -139,7 +137,7 @@ function weighted_cut(state::GameState)::Edge
         haskey(by_id, id) || continue
         by_id[id].state == :neutral || continue
         c, _ = _cheapest_st(g; forbidden=Set((id,)))
-        cost = c == Inf ? 1e9 : c            # disconnection dominates
+        cost = c == Inf ? 1e9 : c            # Disconnecting Short is the best result.
         if cost > best_cost + 1e-12
             best = by_id[id]; best_cost = cost
         end
@@ -147,7 +145,7 @@ function weighted_cut(state::GameState)::Edge
     return best
 end
 
-# Small helper: argmin of `f` over a non-empty collection.
+# Return the element with the smallest value of f.
 function argmin_by(xs, f)
     best = first(xs); bv = f(best)
     for x in xs
